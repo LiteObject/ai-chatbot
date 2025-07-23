@@ -1,7 +1,7 @@
--- Sample database initialization script for AI Chatbot
--- This script creates sample tables and data for testing
-
--- Create a sample customers table
+--
+-- PURPOSE: This script initializes the PostgreSQL database for the AI Chatbot project with sample tables, data, indexes, views, and permissions.
+-- USAGE: It is automatically executed by the PostgreSQL container during startup via Docker Compose (see docker-compose.yml). When the database service starts, any scripts in the docker/init-db/ directory are run to set up the schema and insert sample data. This enables immediate testing and development of database features in the chatbot application.
+--
 CREATE TABLE IF NOT EXISTS customers (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
