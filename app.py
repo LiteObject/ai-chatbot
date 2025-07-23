@@ -3,7 +3,6 @@ AI Chatbot Application using Streamlit, OpenAI, and LlamaIndex
 Main application file with user interface and interaction handling.
 """
 import streamlit as st
-import os
 import pandas as pd
 from typing import Dict, Any
 import time

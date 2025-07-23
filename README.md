@@ -2,7 +2,7 @@
 
 A powerful AI-powered chatbot application built with Streamlit, OpenAI GPT models, and LlamaIndex. The application supports document processing, PostgreSQL database querying, and general chat capabilities with a clean, minimalist interface.
 
-## 🚀 Features
+## Features
 
 - **Document Processing**: Upload and query PDF, TXT, and DOCX files
 - **Database Integration**: Connect to PostgreSQL databases and query with natural language
@@ -15,7 +15,7 @@ A powerful AI-powered chatbot application built with Streamlit, OpenAI GPT model
 - **Docker Integration**: Containerized ChromaDB and PostgreSQL for easy deployment
 - **Persistent Storage**: Data survives container restarts
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -33,14 +33,14 @@ A powerful AI-powered chatbot application built with Streamlit, OpenAI GPT model
                     └─────────────────┘
 ```
 
-## 📋 Requirements
+## Requirements
 
 - Python 3.8 or higher
 - OpenAI API key
 - Docker and Docker Compose (recommended)
 - PostgreSQL database (optional, for database features)
 
-## 🛠️ Installation
+## Installation
 
 1. **Clone the repository:**
    ```bash
@@ -73,7 +73,7 @@ A powerful AI-powered chatbot application built with Streamlit, OpenAI GPT model
    OPENAI_API_KEY=your_openai_api_key_here
    ```
 
-## 🐳 Docker Setup (Recommended)
+## Docker Setup (Recommended)
 
 For the complete experience with both PostgreSQL and ChromaDB, use Docker:
 
@@ -133,7 +133,7 @@ docker-compose up -d chromadb
 docker-compose up -d pgadmin
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -164,7 +164,7 @@ The application comes with sensible defaults:
 - **Chunk Overlap**: 200 characters
 - **Max Conversation History**: 20 messages
 
-## 🚀 Usage
+## Usage
 
 1. **Start the Docker services (recommended):**
    ```bash
@@ -222,6 +222,60 @@ streamlit run test_streamlit_imports.py --server.port 8502
 - Ask general questions when no documents or database are connected
 - Powered by OpenAI GPT models
 - Adjustable temperature and model selection
+
+## 🔍 Sample Database Queries
+
+<details>
+<summary>Click to expand sample queries for testing</summary>
+
+Once you have the Docker PostgreSQL database running, you can test these natural language queries:
+
+### Database Schema
+The Docker setup creates these tables with sample data:
+- **customers** - Customer information (10 sample customers)
+- **products** - Product catalog (10 sample products) 
+- **orders** - Order records (10 sample orders)
+- **order_items** - Individual items in each order
+- **order_summary** (view) - Combined order and customer information
+- **product_sales** (view) - Product sales statistics
+
+### Basic Queries
+**Customer Information:**
+- "How many customers do we have?"
+- "Show me all customers from the USA"
+- "What is John Doe's email address?"
+- "List all customers in New York"
+
+**Product Information:**
+- "How many products are in stock?"
+- "Show me all products in the Electronics category"
+- "What is the most expensive product?"
+- "List all products under $50"
+
+**Order Information:**
+- "How many orders were placed this month?"
+- "Show me all completed orders"
+- "What is the total value of all orders?"
+- "Which customer has the most orders?"
+
+### Advanced Queries
+**Sales Analysis:**
+- "What are the top 5 best-selling products?"
+- "Show me total revenue by product category"
+- "Which products have never been ordered?"
+- "What is the average order value?"
+
+**Customer Analysis:**
+- "Who are our top 3 customers by total spending?"
+- "Show me customers who haven't ordered recently"
+- "What is the average customer lifetime value?"
+
+**Inventory & Trends:**
+- "Which products are running low on stock?"
+- "Show me monthly sales trends"
+- "What categories generate the most revenue?"
+
+</details>
 
 ## 📁 Project Structure
 
@@ -283,7 +337,7 @@ The application uses LlamaIndex for:
 - Efficient document chunking (1000 chars with 200 overlap)
 - Connection pooling for database operations
 
-## 🎮 Example Use Cases
+## Example Use Cases
 
 ### Document Analysis
 ```
@@ -309,7 +363,7 @@ User: "Explain machine learning in simple terms"
 Assistant: Machine learning is a type of artificial intelligence that...
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -355,7 +409,7 @@ Assistant: Machine learning is a type of artificial intelligence that...
    - Consider query complexity
    - Check database connection
 
-## 🔄 Updates and Maintenance
+## Updates and Maintenance
 
 ### Updating Dependencies
 ```bash
@@ -402,7 +456,55 @@ docker system prune
 ### Monitoring Usage
 Check the Streamlit logs for application performance and errors.
 
-## 📝 Development
+## Development
+
+## Development
+
+<details>
+<summary>Click to expand implementation details</summary>
+
+### ✅ Implementation Summary
+
+The complete AI Chatbot application has been successfully implemented with all requested features:
+
+#### Core Requirements Met:
+1. **Streamlit UI** - Clean, minimalist interface with sidebar controls
+2. **Document Upload** - PDF, TXT, DOCX support with drag-and-drop
+3. **PostgreSQL Integration** - Full database connectivity and querying
+4. **Temperature Control** - Adjustable via sidebar slider (0.0-2.0)
+5. **File Management** - Upload, view, and delete documents
+6. **LlamaIndex Framework** - Complete integration for documents and SQL
+
+#### Advanced Features:
+- **Intelligent Query Routing** - Auto-detects document vs database vs general queries
+- **Vector Search** - ChromaDB for persistent document embeddings
+- **Natural Language to SQL** - Converts questions to SQL queries
+- **Source Citations** - Shows document sources and SQL queries
+- **Session Management** - Conversation history with 20-message limit
+- **Error Handling** - Comprehensive validation and error messages
+- **Security** - Input sanitization, SQL injection protection
+
+#### UI Components:
+- **Sidebar Sections:**
+  - File upload with progress indicators
+  - Database connection form with test capability
+  - Table browser with schema information
+  - Model and temperature controls
+  - Uploaded files management
+- **Main Chat Interface:**
+  - Message bubbles with role-based styling
+  - Source citations for responses
+  - SQL query display for database responses
+  - Conversation history management
+
+#### Technical Architecture:
+- **Document Processing:** LlamaIndex + ChromaDB for vector storage
+- **Database Integration:** SQLAlchemy + PostgreSQL with natural language processing
+- **Chat Management:** Intelligent routing between document, database, and general queries
+- **State Management:** Streamlit session state for persistent user data
+- **Docker Integration:** Containerized PostgreSQL and ChromaDB services
+
+</details>
 
 ### Adding New Document Types
 
@@ -422,11 +524,11 @@ Check the Streamlit logs for application performance and errors.
 2. Update Streamlit components
 3. Test responsive design
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -434,14 +536,14 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 4. Add tests if applicable
 5. Submit a pull request
 
-## 📞 Support
+## Support
 
 For issues and questions:
 1. Check the troubleshooting section
 2. Review existing issues in the repository
 3. Create a new issue with detailed information
 
-## 🎯 Future Enhancements
+## Future Enhancements
 
 - [ ] Support for additional file formats (XLSX, CSV, etc.)
 - [ ] Multi-database support (MySQL, SQLite, etc.)
@@ -458,7 +560,7 @@ For issues and questions:
 - [ ] Real-time document synchronization
 - [ ] Integration with cloud storage (S3, Google Drive)
 
-## 🔧 Quick Troubleshooting Commands
+## Quick Troubleshooting Commands
 
 ```bash
 # Check all services status
