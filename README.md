@@ -18,20 +18,46 @@ A powerful AI-powered chatbot application built with Streamlit, OpenAI GPT model
 ## Architecture
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Streamlit     │    │   PostgreSQL    │    │    ChromaDB     │
-│   (Frontend)    │◄──►│   (Structured   │    │   (Vector DB)   │
-│   Port: 8501    │    │    Data)        │    │   Port: 8000    │
-│                 │    │   Port: 5432    │    │                 │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         └───────────────────────┼───────────────────────┘
-                                 │
-                    ┌─────────────────┐
-                    │     Docker      │
-                    │    Network      │
-                    └─────────────────┘
+                            ┌─────────────────┐
+                            │   OpenAI API    │
+                            │   (GPT Models   │
+                            │  & Embeddings)  │
+                            └─────────┬───────┘
+                                      │
+┌─────────────────┐                   │                   ┌─────────────────┐
+│   Streamlit     │◄──────────────────┼──────────────────►│    LlamaIndex   │
+│   (Frontend)    │                   │                   │   (Middleware)  │
+│   Port: 8501    │                   │                   │                 │
+└─────────┬───────┘                   │                   └─────────┬───────┘
+          │                           │                             │
+          │    ┌─────────────────┐    │    ┌─────────────────┐      │
+          └───►│   PostgreSQL    │◄───┘    │    ChromaDB     │◄─────┘
+               │   (Structured   │         │   (Vector DB)   │
+               │    Data)        │         │   Port: 8000    │
+               │   Port: 5432    │         │                 │
+               └─────────┬───────┘         └─────────┬───────┘
+                         │                           │
+               ┌─────────┴───────┐                   │
+               │    pgAdmin      │                   │
+               │  (Optional UI)  │                   │
+               │   Port: 8181    │                   │
+               └─────────────────┘                   │
+                         │                           │
+                         └───────────┬───────────────┘
+                                     │
+                        ┌─────────────────┐
+                        │     Docker      │
+                        │    Network      │
+                        └─────────────────┘
 ```
+
+### Data Flow:
+1. **User Input** → Streamlit UI
+2. **Query Classification** → LlamaIndex determines routing (document/database/general)
+3. **Document Queries** → ChromaDB for vector search + OpenAI for embeddings
+4. **Database Queries** → PostgreSQL via LlamaIndex SQL generation + OpenAI
+5. **General Chat** → Direct OpenAI API calls
+6. **Responses** → Streamlit UI with source citations and data tables
 
 ## Requirements
 
@@ -39,6 +65,7 @@ A powerful AI-powered chatbot application built with Streamlit, OpenAI GPT model
 - OpenAI API key
 - Docker and Docker Compose (recommended)
 - PostgreSQL database (optional, for database features)
+- `psycopg2-binary` (automatically installed via requirements.txt)
 
 ## Installation
 
@@ -72,6 +99,14 @@ A powerful AI-powered chatbot application built with Streamlit, OpenAI GPT model
    # Edit .env and add your OpenAI API key
    OPENAI_API_KEY=your_openai_api_key_here
    ```
+
+5. **Quick Start:**
+   ```bash
+   # Launch everything with one command!
+   python launch.py
+   ```
+   
+   The launch script will handle Docker containers, dependency checks, and application startup automatically.
 
 ## Docker Setup (Recommended)
 
@@ -166,7 +201,26 @@ The application comes with sensible defaults:
 
 ## Usage
 
-1. **Start the Docker services (recommended):**
+### Quick Start with Launch Script (Recommended)
+
+The easiest way to start the application is using the integrated launch script:
+
+```bash
+python launch.py
+```
+
+The launch script will:
+- Check Docker installation and start containers automatically
+- Verify all dependencies are installed
+- Launch the Streamlit application
+- Handle container health checks
+- Provide helpful prompts and status updates
+
+### Manual Startup (Alternative)
+
+If you prefer manual control:
+
+1. **Start the Docker services:**
    ```bash
    docker-compose up -d
    ```
@@ -282,7 +336,9 @@ The Docker setup creates these tables with sample data:
 ```
 ai_chatbot/
 ├── app.py                 # Main Streamlit application
+├── launch.py              # Integrated launcher script with Docker management
 ├── docker-compose.yml     # Docker configuration for all services
+├── docker_db_manager.py   # Standalone Docker database management utility
 ├── config/
 │   └── settings.py        # Configuration settings
 ├── src/
@@ -378,19 +434,28 @@ Assistant: Machine learning is a type of artificial intelligence that...
    - For Docker: Run `docker-compose ps` to check container status
    - For Docker: Run `docker-compose logs postgres` to check PostgreSQL logs
 
-3. **ChromaDB Connection Failed:**
+3. **SQLAlchemy "immutabledict is not a sequence" Error:**
+   - This was a known compatibility issue that has been fixed in recent versions
+   - Ensure you're using the latest version of the application
+   - If still experiencing issues, try: `pip install --upgrade sqlalchemy pandas`
+
+4. **Missing psycopg2 Error:**
+   - Install the PostgreSQL adapter: `pip install psycopg2-binary`
+   - This dependency is included in requirements.txt for new installations
+
+5. **ChromaDB Connection Failed:**
    - Ensure ChromaDB Docker container is running: `docker-compose up -d chromadb`
    - Check ChromaDB status: `docker-compose logs chromadb`
    - Verify ChromaDB is accessible: `curl http://localhost:8000`
    - For connection issues, restart the container: `docker-compose restart chromadb`
 
-4. **Document Processing Errors:**
+6. **Document Processing Errors:**
    - Verify file format is supported (PDF, TXT, DOCX)
    - Check file size (max 10MB)
    - Ensure file is not corrupted
    - Check ChromaDB connection (documents are stored in vector database)
 
-5. **Import Errors:**
+7. **Import Errors:**
    - Ensure all dependencies are installed: `pip install -r requirements.txt`
    - Check Python version (3.8+)
    - Activate virtual environment
@@ -524,6 +589,11 @@ The complete AI Chatbot application has been successfully implemented with all r
 2. Update Streamlit components
 3. Test responsive design
 
+### Database Management Tools
+- **`launch.py`**: Integrated launcher with Docker management
+- **`docker_db_manager.py`**: Standalone database management utility
+- **Automatic Health Checks**: Ensures PostgreSQL and ChromaDB are ready before starting the app
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
@@ -560,9 +630,12 @@ For issues and questions:
 - [ ] Real-time document synchronization
 - [ ] Integration with cloud storage (S3, Google Drive)
 
-## Quick Troubleshooting Commands
+# Quick Troubleshooting Commands
 
 ```bash
+# Start application with integrated launcher (recommended)
+python launch.py
+
 # Check all services status
 docker-compose ps
 
@@ -577,6 +650,9 @@ docker exec ai-chatbot-postgres psql -U chatbot_user -d ai_chatbot -c "SELECT ve
 
 # View application logs
 streamlit run app.py --logger.level debug
+
+# Manage database with standalone utility
+python docker_db_manager.py
 
 # Reset everything
 docker-compose down
