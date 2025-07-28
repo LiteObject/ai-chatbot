@@ -56,7 +56,7 @@ def start_database():
     max_attempts = 30
     for attempt in range(max_attempts):
         try:
-            result = subprocess.run(
+            subprocess.run(
                 ["docker-compose", "exec", "-T", "postgres", "pg_isready",
                     "-U", "chatbot_user", "-d", "ai_chatbot"],
                 check=True, capture_output=True
@@ -160,10 +160,10 @@ def setup_env_file():
 
     try:
         # Copy Docker environment template
-        with open('.env.docker', 'r') as source:
+        with open('.env.docker', 'r', encoding='utf-8') as source:
             content = source.read()
 
-        with open('.env', 'w') as target:
+        with open('.env', 'w', encoding='utf-8') as target:
             target.write(content)
 
         print("✅ Environment file configured for Docker!")

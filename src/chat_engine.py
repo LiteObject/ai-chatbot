@@ -2,18 +2,15 @@
 Chat engine for the AI Chatbot application.
 Handles message routing, conversation management, and response generation.
 """
-import streamlit as st
-from typing import List, Dict, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-try:
-    from llama_index.llms.openai import OpenAI
-except ImportError as e:
-    st.error(f"Required chat libraries not installed: {e}")
+import streamlit as st
+from llama_index.llms.openai import OpenAI
 
 from config.settings import settings
-from src.document_handler import DocumentHandler
 from src.database_handler import DatabaseHandler
+from src.document_handler import DocumentHandler
 
 
 class ChatEngine:
@@ -66,14 +63,31 @@ class ChatEngine:
             "columns", "schema", "postgres", "postgresql"
         ]
 
+        # Product/data query keywords - these should go to database
+        product_keywords = [
+            "show me", "find", "search for", "get", "list", "display",
+            "products", "items", "inventory", "stock", "price", "cost",
+            "category", "categories", "office supplies", "electronics",
+            "furniture", "coffee", "mug", "pen", "desk", "chair",
+            "how many", "what", "which", "all", "orders", "order",
+            "sales", "customers", "customer", "purchases", "transactions",
+            "last month", "this month", "today", "yesterday", "revenue",
+            "total", "count", "placed", "bought", "sold"
+        ]
+
         # Document-related keywords
         doc_keywords = [
             "document", "file", "pdf", "text", "uploaded", "content",
             "what does the document say", "in the file", "according to"
         ]
 
-        # Check for database-related query
+        # Check for database-related query (direct database keywords)
         if any(keyword in user_message_lower for keyword in db_keywords):
+            if self.database_handler.get_connection_status():
+                return "database"
+
+        # Check for product/data queries that should go to database
+        if any(keyword in user_message_lower for keyword in product_keywords):
             if self.database_handler.get_connection_status():
                 return "database"
 
@@ -121,9 +135,21 @@ class ChatEngine:
                 "query": user_message
             }
 
-        except Exception as e:
+        except AttributeError as e:
             return {
-                "response": f"Error processing document query: {str(e)}",
+                "response": f"Error processing document query (attribute error): {str(e)}",
+                "sources": [],
+                "type": "error"
+            }
+        except RuntimeError as e:
+            return {
+                "response": f"Runtime error processing document query: {str(e)}",
+                "sources": [],
+                "type": "error"
+            }
+        except ValueError as e:
+            return {
+                "response": f"Value error processing document query: {str(e)}",
                 "sources": [],
                 "type": "error"
             }
@@ -173,9 +199,23 @@ class ChatEngine:
                 "query": user_message
             }
 
-        except Exception as e:
+        except ValueError as e:
             return {
-                "response": f"Error processing database query: {str(e)}",
+                "response": f"Value error processing database query: {str(e)}",
+                "sql_query": None,
+                "data": None,
+                "type": "error"
+            }
+        except TypeError as e:
+            return {
+                "response": f"Type error processing database query: {str(e)}",
+                "sql_query": None,
+                "data": None,
+                "type": "error"
+            }
+        except AttributeError as e:
+            return {
+                "response": f"Attribute error processing database query: {str(e)}",
                 "sql_query": None,
                 "data": None,
                 "type": "error"
@@ -195,7 +235,7 @@ class ChatEngine:
             messages = []
 
             # Add system message
-            system_message = """You are a helpful AI assistant. You can help users with general questions, 
+            system_message = """You are a helpful AI assistant. You can help users with general questions,
             but you specialize in helping them work with documents and databases. If users ask about 
             documents or databases, suggest they upload documents or connect to a database first."""
 
@@ -221,13 +261,13 @@ class ChatEngine:
                 "query": user_message
             }
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError) as e:
             return {
                 "response": f"Error processing general query: {str(e)}",
                 "type": "error"
             }
 
-    def _generate_database_response(self, question: str, data, sql_query: str) -> str:
+    def _generate_database_response(self, question: str, data, sql_query: str | None) -> str:
         """Generate natural language response for database query results."""
         try:
             if data is None or data.empty:
@@ -257,8 +297,8 @@ class ChatEngine:
 
             return " ".join(response_parts)
 
-        except Exception as e:
-            return f"Generated results successfully. Query returned {len(data) if data is not None else 0} records."
+        except (AttributeError, TypeError, ValueError) as e:
+            return f"Error generating database response: {str(e)}"
 
     def process_message(self, user_message: str) -> Dict[str, Any]:
         """Main method to process user messages."""

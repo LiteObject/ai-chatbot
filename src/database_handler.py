@@ -2,21 +2,14 @@
 Database handling functionality for the AI Chatbot.
 Handles PostgreSQL connections and SQL query processing using LlamaIndex.
 """
-import streamlit as st
 from typing import List, Optional, Dict, Any, Tuple
+import streamlit as st
 import pandas as pd
-
-try:
-    from sqlalchemy import create_engine, text, inspect
-    from sqlalchemy.exc import SQLAlchemyError
-    from llama_index.core.query_engine import NLSQLTableQueryEngine
-    from llama_index.core import SQLDatabase
-    import psycopg2
-except ImportError as e:
-    st.error(f"Required database libraries not installed: {e}")
-
-from config.settings import settings
-from src.utils import validate_connection_string, format_sql_query
+from sqlalchemy import create_engine, text, inspect
+from sqlalchemy.exc import SQLAlchemyError
+from llama_index.core.query_engine import NLSQLTableQueryEngine
+from llama_index.core import SQLDatabase
+from src.utils import validate_connection_string
 
 
 class DatabaseHandler:
@@ -45,8 +38,6 @@ class DatabaseHandler:
 
         except SQLAlchemyError as e:
             return False, f"Database connection error: {str(e)}"
-        except Exception as e:
-            return False, f"Connection error: {str(e)}"
 
     def connect_to_database(self, connection_string: str) -> bool:
         """Connect to PostgreSQL database."""
@@ -77,9 +68,6 @@ class DatabaseHandler:
         except SQLAlchemyError as e:
             st.error(f"Database connection error: {str(e)}")
             return False
-        except Exception as e:
-            st.error(f"Failed to connect to database: {str(e)}")
-            return False
 
     def disconnect_from_database(self):
         """Disconnect from database."""
@@ -103,6 +91,11 @@ class DatabaseHandler:
     def _load_table_information(self):
         """Load table and schema information."""
         try:
+
+            if self.engine is None:
+                st.error("No database connection available")
+                return
+
             inspector = inspect(self.engine)
 
             # Get all schemas
@@ -153,8 +146,12 @@ class DatabaseHandler:
             df = pd.read_sql(query, self.engine)
             return df
 
-        except Exception as e:
-            st.error(f"Failed to preview table {table_name}: {str(e)}")
+        except SQLAlchemyError as e:
+            st.error(f"SQL execution error: {str(e)}")
+            return None
+        except ValueError as e:
+            st.error(
+                f"Value error while previewing table {table_name}: {str(e)}")
             return None
 
     def execute_sql_query(self, query: str) -> Optional[pd.DataFrame]:
@@ -176,11 +173,8 @@ class DatabaseHandler:
         except SQLAlchemyError as e:
             st.error(f"SQL execution error: {str(e)}")
             return None
-        except Exception as e:
-            st.error(f"Failed to execute query: {str(e)}")
-            return None
 
-    def natural_language_to_sql(self, question: str) -> Optional[Tuple[str, pd.DataFrame]]:
+    def natural_language_to_sql(self, question: str) -> Tuple[str | None, pd.DataFrame | None] | None:
         """Convert natural language question to SQL and execute."""
         try:
             if not self.sql_database:
@@ -208,26 +202,28 @@ class DatabaseHandler:
                 # If we can't extract the SQL, return the response as text
                 return None, pd.DataFrame({'Response': [str(response)]})
 
-        except Exception as e:
+        except SQLAlchemyError as e:
             st.error(f"Failed to process natural language query: {str(e)}")
             return None
 
     def get_database_info(self) -> Dict[str, Any]:
         """Get general database information."""
-        if not self.connection_status:
+        if not self.connection_status or self.engine is None:
             return {}
 
         try:
             with self.engine.connect() as conn:
                 # Get database version
                 version_result = conn.execute(text("SELECT version()"))
-                version = version_result.fetchone()[0]
+                version_row = version_result.fetchone()
+                version = version_row[0] if version_row else "Unknown"
 
                 # Get database size
                 size_result = conn.execute(
                     text("SELECT pg_size_pretty(pg_database_size(current_database()))")
                 )
-                size = size_result.fetchone()[0]
+                size_row = size_result.fetchone()
+                size = size_row[0] if size_row else "Unknown"
 
                 return {
                     'version': version,
@@ -236,7 +232,7 @@ class DatabaseHandler:
                     'connection_status': self.connection_status
                 }
 
-        except Exception as e:
+        except SQLAlchemyError as e:
             st.error(f"Failed to get database info: {str(e)}")
             return {}
 
@@ -258,7 +254,7 @@ class DatabaseHandler:
 
             return access_status
 
-        except Exception as e:
+        except SQLAlchemyError as e:
             st.error(f"Failed to validate table access: {str(e)}")
             return {table: False for table in table_names}
 

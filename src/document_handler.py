@@ -4,33 +4,37 @@ Handles file uploads, processing, and indexing using LlamaIndex.
 """
 import os
 import streamlit as st
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from pathlib import Path
-import tempfile
 
+# Runtime imports with fallbacks
 try:
-    from llama_index.core import VectorStoreIndex, Document, StorageContext, Settings
-    from llama_index.llms.openai import OpenAI
-    from llama_index.embeddings.openai import OpenAIEmbedding
-    from llama_index.vector_stores.chroma import ChromaVectorStore
-    import chromadb
-    import PyPDF2
-    import docx
+    from llama_index.core import VectorStoreIndex, Document, StorageContext, Settings  # type: ignore
+    from llama_index.llms.openai import OpenAI  # type: ignore
+    from llama_index.embeddings.openai import OpenAIEmbedding  # type: ignore
+    from llama_index.vector_stores.chroma import ChromaVectorStore  # type: ignore
+    import chromadb  # type: ignore
+    import PyPDF2  # type: ignore
+    import docx  # type: ignore
     IMPORTS_AVAILABLE = True
 except ImportError as e:
     # Try alternative import for older versions
     try:
-        from llama_index import VectorStoreIndex, Document, StorageContext, ServiceContext
-        from llama_index.llms import OpenAI
-        from llama_index.embeddings import OpenAIEmbedding
-        from llama_index.vector_stores import ChromaVectorStore
-        import chromadb
-        import PyPDF2
-        import docx
+        from llama_index import VectorStoreIndex, Document, StorageContext  # type: ignore
+        try:
+            from llama_index import ServiceContext  # type: ignore
+        except ImportError:
+            ServiceContext = None
+        from llama_index.llms import OpenAI  # type: ignore
+        from llama_index.embeddings import OpenAIEmbedding  # type: ignore
+        from llama_index.vector_stores import ChromaVectorStore  # type: ignore
+        import chromadb  # type: ignore
+        import PyPDF2  # type: ignore
+        import docx  # type: ignore
         Settings = None  # Use ServiceContext for older versions
         IMPORTS_AVAILABLE = True
     except ImportError as e2:
-        # Don't show errors immediately - wait until features are used
+        # Runtime imports not available
         IMPORTS_AVAILABLE = False
         import_error = str(e2)
 
@@ -78,18 +82,18 @@ class DocumentHandler:
 
         try:
             # Connect to ChromaDB running in Docker
-            self.chroma_client = chromadb.HttpClient(
+            self.chroma_client = chromadb.HttpClient(  # type: ignore
                 host="localhost",
                 port=8000
             )
 
             chroma_collection = self.chroma_client.get_or_create_collection(
                 "documents")
-            self.vector_store = ChromaVectorStore(
+            self.vector_store = ChromaVectorStore(  # type: ignore
                 chroma_collection=chroma_collection)
-            self.storage_context = StorageContext.from_defaults(
+            self.storage_context = StorageContext.from_defaults(  # type: ignore
                 vector_store=self.vector_store)
-        except Exception as e:
+        except (ConnectionError, OSError, ImportError, AttributeError) as e:
             st.error(f"Failed to initialize vector store: {e}")
             st.error("Make sure ChromaDB is running: docker-compose up -d chromadb")
 
@@ -105,18 +109,19 @@ class DocumentHandler:
                 'temperature', settings.DEFAULT_TEMPERATURE)
             model = st.session_state.get('model', settings.DEFAULT_MODEL)
 
-            # Configure global settings
-            Settings.llm = OpenAI(
-                model=model,
-                temperature=temperature,
-                api_key=settings.OPENAI_API_KEY
-            )
-            Settings.embed_model = OpenAIEmbedding(
-                api_key=settings.OPENAI_API_KEY)
-            Settings.chunk_size = settings.DEFAULT_CHUNK_SIZE
-            Settings.chunk_overlap = settings.DEFAULT_CHUNK_OVERLAP
+            # Configure global settings (only if Settings is available)
+            if Settings is not None:
+                Settings.llm = OpenAI(  # type: ignore
+                    model=model,
+                    temperature=temperature,
+                    api_key=settings.OPENAI_API_KEY
+                )
+                Settings.embed_model = OpenAIEmbedding(  # type: ignore
+                    api_key=settings.OPENAI_API_KEY)
+                Settings.chunk_size = settings.DEFAULT_CHUNK_SIZE
+                Settings.chunk_overlap = settings.DEFAULT_CHUNK_OVERLAP
 
-        except Exception as e:
+        except (ImportError, AttributeError, ValueError) as e:
             st.error(f"Failed to initialize service context: {e}")
 
     def validate_file(self, uploaded_file) -> Dict[str, Any]:
@@ -185,7 +190,7 @@ class DocumentHandler:
 
             return file_path
 
-        except Exception as e:
+        except (OSError, IOError, PermissionError) as e:
             st.error(f"Failed to save file: {e}")
             return None
 
@@ -214,7 +219,7 @@ class DocumentHandler:
                 return False
 
             # Create document object
-            document = Document(
+            document = Document(  # type: ignore
                 text=text,
                 metadata={
                     "file_path": file_path,
@@ -226,7 +231,7 @@ class DocumentHandler:
 
             # Add to index
             if self.document_index is None:
-                self.document_index = VectorStoreIndex.from_documents(
+                self.document_index = VectorStoreIndex.from_documents(  # type: ignore
                     [document],
                     storage_context=self.storage_context
                 )
@@ -238,39 +243,39 @@ class DocumentHandler:
 
             return True
 
-        except Exception as e:
+        except (ImportError, AttributeError, ValueError, KeyError) as e:
             st.error(f"Failed to process document: {e}")
             return False
 
     def _extract_pdf_text(self, file_path: str) -> str:
         """Extract text from PDF file."""
-        if 'PyPDF2' not in globals():
+        if not IMPORTS_AVAILABLE:
             st.error("PDF reading not available: PyPDF2 library not installed")
             return ""
 
         text = ""
         try:
             with open(file_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
+                pdf_reader = PyPDF2.PdfReader(file)  # type: ignore
                 for page in pdf_reader.pages:
                     text += page.extract_text() + "\n"
-        except Exception as e:
+        except (OSError, IOError, AttributeError) as e:
             st.error(f"Failed to extract PDF text: {e}")
         return text
 
     def _extract_docx_text(self, file_path: str) -> str:
         """Extract text from DOCX file."""
-        if 'docx' not in globals():
+        if not IMPORTS_AVAILABLE:
             st.error(
                 "DOCX reading not available: python-docx library not installed")
             return ""
 
         text = ""
         try:
-            doc = docx.Document(file_path)
+            doc = docx.Document(file_path)  # type: ignore
             for paragraph in doc.paragraphs:
                 text += paragraph.text + "\n"
-        except Exception as e:
+        except (OSError, IOError, AttributeError) as e:
             st.error(f"Failed to extract DOCX text: {e}")
         return text
 
@@ -284,9 +289,9 @@ class DocumentHandler:
             try:
                 with open(file_path, 'r', encoding='latin-1') as file:
                     text = file.read()
-            except Exception as e:
+            except (OSError, IOError, UnicodeDecodeError) as e:
                 st.error(f"Failed to extract TXT text: {e}")
-        except Exception as e:
+        except (OSError, IOError) as e:
             st.error(f"Failed to extract TXT text: {e}")
         return text
 
@@ -311,7 +316,7 @@ class DocumentHandler:
 
             return True
 
-        except Exception as e:
+        except (OSError, KeyError) as e:
             st.error(f"Failed to delete document: {e}")
             return False
 
@@ -337,7 +342,7 @@ class DocumentHandler:
 
             return True
 
-        except Exception as e:
+        except (OSError, IOError, PermissionError) as e:
             st.error(f"Failed to clear documents: {e}")
             return False
 

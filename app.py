@@ -2,17 +2,16 @@
 AI Chatbot Application using Streamlit, OpenAI, and LlamaIndex
 Main application file with user interface and interaction handling.
 """
+from typing import Any, Dict
+
 import streamlit as st
-import pandas as pd
-from typing import Dict, Any
-import time
 
 # Import custom modules
 from config.settings import settings
-from src.document_handler import DocumentHandler
-from src.database_handler import DatabaseHandler
 from src.chat_engine import ChatEngine
-from src.utils import format_file_size, get_timestamp
+from src.database_handler import DatabaseHandler
+from src.document_handler import DocumentHandler
+from src.utils import format_file_size, get_file_hash, get_timestamp
 
 
 def initialize_app():
@@ -137,7 +136,7 @@ def process_uploaded_file(uploaded_file):
     file_content = uploaded_file.read()
     uploaded_file.seek(0)  # Reset file pointer
 
-    file_hash = document_handler.get_file_hash(file_content)
+    file_hash = get_file_hash(file_content)
     uploaded_files = document_handler.get_uploaded_files()
 
     if file_hash in uploaded_files:
@@ -380,14 +379,14 @@ def render_chat_interface():
     chat_container = st.container()
 
     with chat_container:
-        for message in messages:
-            render_chat_message(message)
+        for index, message in enumerate(messages):
+            render_chat_message(message, index)
 
     # Chat input
     render_chat_input()
 
 
-def render_chat_message(message: Dict[str, Any]):
+def render_chat_message(message: Dict[str, Any], message_index: int = 0):
     """Render a single chat message."""
     role = message["role"]
     content = message["content"]
@@ -408,7 +407,7 @@ def render_chat_message(message: Dict[str, Any]):
                 render_document_sources(metadata["sources"])
 
             elif msg_type == "database":
-                render_database_results(metadata)
+                render_database_results(metadata, message_index)
 
 
 def render_document_sources(sources):
@@ -422,7 +421,7 @@ def render_document_sources(sources):
                 f"{i}. **{source['file_name']}** (Score: {source['score']:.2f})")
 
 
-def render_database_results(metadata):
+def render_database_results(metadata, message_index: int = 0):
     """Render database query results."""
     sql_query = metadata.get("sql_query")
     data = metadata.get("data")
@@ -435,13 +434,19 @@ def render_database_results(metadata):
         with st.expander("📊 Query Results"):
             st.dataframe(data, use_container_width=True)
 
-            # Download button for results
+            # Download button for results with unique key using message index
             csv = data.to_csv(index=False)
+            timestamp = get_timestamp().replace(':', '-').replace(' ', '_').replace('.', '_')
+            # Create unique key using message index, timestamp and data hash
+            data_hash = abs(hash(str(data.values.tolist()))) % 10000
+            unique_key = f"download_csv_msg_{message_index}_{timestamp}_{data_hash}"
+
             st.download_button(
                 label="📥 Download CSV",
                 data=csv,
-                file_name=f"query_results_{get_timestamp().replace(':', '-')}.csv",
-                mime="text/csv"
+                file_name=f"query_results_{timestamp}.csv",
+                mime="text/csv",
+                key=unique_key
             )
 
 
@@ -453,7 +458,7 @@ def render_chat_input():
     if user_input:
         # Process the message
         with st.spinner("Thinking..."):
-            result = st.session_state.chat_engine.process_message(user_input)
+            st.session_state.chat_engine.process_message(user_input)
 
         # Rerun to show the new messages
         st.rerun()
