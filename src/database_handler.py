@@ -167,8 +167,15 @@ class DatabaseHandler:
                 st.error("Only SELECT queries are allowed")
                 return None
 
-            df = pd.read_sql(query, self.engine)
-            return df
+            # Use text() to wrap the query for SQLAlchemy 2.x compatibility
+            with self.engine.connect() as conn:
+                result = conn.execute(text(query))
+                rows = result.fetchall()
+                columns = list(result.keys())
+
+                # Convert to DataFrame
+                df = pd.DataFrame(rows, columns=columns)
+                return df
 
         except SQLAlchemyError as e:
             st.error(f"SQL execution error: {str(e)}")
@@ -181,14 +188,18 @@ class DatabaseHandler:
                 st.error("No database connection")
                 return None
 
+            # Enhance the question with context about the database structure
+            enhanced_question = self._enhance_question_with_context(question)
+
             # Create query engine
             query_engine = NLSQLTableQueryEngine(
                 sql_database=self.sql_database,
-                tables=self.available_tables
+                tables=self.available_tables,
+                synthesize_response=True
             )
 
-            # Execute natural language query
-            response = query_engine.query(question)
+            # Execute natural language query with enhanced context
+            response = query_engine.query(enhanced_question)
 
             # Extract SQL query from response metadata
             sql_query = getattr(response, 'metadata', {}).get(
@@ -205,6 +216,57 @@ class DatabaseHandler:
         except SQLAlchemyError as e:
             st.error(f"Failed to process natural language query: {str(e)}")
             return None
+
+    def _enhance_question_with_context(self, question: str) -> str:
+        """Enhance the question with database context to improve SQL generation."""
+        # Build context about the database
+        context_info = []
+
+        try:
+            if self.engine:
+                with self.engine.connect() as conn:
+                    # Get available categories
+                    if 'products' in [t.lower() for t in self.available_tables]:
+                        categories_result = conn.execute(
+                            text("SELECT DISTINCT category FROM products"))
+                        categories = [row[0]
+                                      for row in categories_result.fetchall()]
+                        context_info.append(
+                            f"The products table has these categories: {', '.join(categories)}.")
+
+                        # Check for specific product name matches
+                        search_terms = ['lamp', 'light', 'desk', 'chair', 'computer',
+                                        'phone', 'coffee', 'mug', 'table', 'monitor', 'keyboard']
+                        for term in search_terms:
+                            if term.lower() in question.lower():
+                                sample_result = conn.execute(
+                                    text(
+                                        f"SELECT name FROM products WHERE name ILIKE '%{term}%' LIMIT 5")
+                                )
+                                sample_names = [row[0]
+                                                for row in sample_result.fetchall()]
+                                if sample_names:
+                                    context_info.append(
+                                        f"Products with '{term}' in name: {', '.join(sample_names)}.")
+
+        except Exception:
+            # If context building fails, continue without context
+            pass
+
+        # Create enhanced question with context and explicit instructions
+        context_str = " ".join(context_info)
+
+        enhanced_question = f"""{question}
+
+Context: {context_str}
+
+Important: When searching for product types or items, search the 'name' column using ILIKE for partial matches, not the 'category' column. For example:
+- To find items with 'desk': SELECT * FROM products WHERE name ILIKE '%desk%'
+- To find items with 'lamp': SELECT * FROM products WHERE name ILIKE '%lamp%'
+- Categories are broad groups like 'Furniture', 'Electronics', 'Office Supplies'
+- Product names contain specific items like 'Desk Lamp', 'Standing Desk', 'Coffee Mug'"""
+
+        return enhanced_question
 
     def get_database_info(self) -> Dict[str, Any]:
         """Get general database information."""
