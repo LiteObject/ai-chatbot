@@ -14,6 +14,79 @@ from src.document_handler import DocumentHandler
 from src.utils import format_file_size, get_file_hash, get_timestamp
 
 
+def get_available_chat_models():
+    """Get list of available chat models from pricing configuration."""
+    try:
+        from src.token_tracker import load_pricing_config
+
+        pricing_config = load_pricing_config()
+
+        # Filter out embedding models and keep only chat models
+        chat_models = []
+        for model_name in pricing_config.keys():
+            if isinstance(pricing_config[model_name], dict) and not model_name.startswith('text-embedding'):
+                chat_models.append(model_name)
+
+        # Sort models with preferred order
+        preferred_order = [
+            "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4",
+            "gpt-3.5-turbo", "gpt-3.5-turbo-0125", "gpt-3.5-turbo-instruct"
+        ]
+
+        # Sort available models by preference
+        sorted_models = []
+        for preferred in preferred_order:
+            if preferred in chat_models:
+                sorted_models.append(preferred)
+                chat_models.remove(preferred)
+
+        # Add any remaining models
+        sorted_models.extend(sorted(chat_models))
+
+        return sorted_models if sorted_models else ["gpt-3.5-turbo", "gpt-4"]
+
+    except Exception as e:
+        print(f"Error getting available models: {e}")
+        # Fallback to basic models
+        return ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo"]
+
+
+def get_model_info(model_name):
+    """Get information about a specific model."""
+    try:
+        from src.token_tracker import load_pricing_config
+
+        pricing_config = load_pricing_config()
+
+        if model_name in pricing_config:
+            pricing = pricing_config[model_name]
+
+            # Model descriptions and capabilities
+            model_descriptions = {
+                "gpt-4o": "Latest GPT-4 Omni - Fastest, most capable model",
+                "gpt-4o-mini": "Compact GPT-4 Omni - Fast and cost-effective",
+                "gpt-4-turbo": "GPT-4 Turbo - High performance, good balance",
+                "gpt-4": "Original GPT-4 - Most capable, slower",
+                "gpt-3.5-turbo": "GPT-3.5 Turbo - Fast and economical",
+                "gpt-3.5-turbo-0125": "GPT-3.5 Turbo (Latest) - Improved version",
+                "gpt-3.5-turbo-instruct": "GPT-3.5 Instruct - Optimized for instructions"
+            }
+
+            return {
+                "input_cost": pricing.get("input", 0),
+                "output_cost": pricing.get("output", 0),
+                "description": model_descriptions.get(model_name, "OpenAI language model")
+            }
+    except Exception:
+        pass
+
+    return {
+        "input_cost": 0,
+        "output_cost": 0,
+        "description": "OpenAI language model"
+    }
+
+
 def initialize_app():
     """Initialize the Streamlit application."""
     st.set_page_config(
@@ -99,6 +172,56 @@ def render_sidebar():
 
     # Settings Section
     render_settings_section()
+
+    st.sidebar.markdown("---")
+
+    # Pricing Management Section
+    render_pricing_section()
+
+    st.sidebar.markdown("---")
+
+    # Usage Summary Section
+    render_usage_summary()
+
+
+def render_pricing_section():
+    """Render pricing management section in sidebar."""
+    st.sidebar.subheader("💰 Pricing Management")
+
+    if hasattr(st.session_state, 'chat_engine') and st.session_state.chat_engine:
+        from src.token_tracker import token_tracker
+
+        # Get pricing info
+        pricing_info = token_tracker.get_pricing_info()
+
+        # Display current pricing source
+        st.sidebar.info(f"Source: {pricing_info['pricing_source']}")
+        st.sidebar.caption(f"Last updated: {pricing_info['last_updated']}")
+        st.sidebar.caption(f"Models: {pricing_info['models_count']}")
+
+        # Refresh pricing button
+        if st.sidebar.button("🔄 Refresh Pricing", help="Reload pricing from config file"):
+            if token_tracker.refresh_pricing():
+                st.sidebar.success("Pricing refreshed!")
+                st.rerun()
+            else:
+                st.sidebar.error("Failed to refresh pricing")
+
+        # Show update instructions
+        with st.sidebar.expander("📝 Update Pricing"):
+            st.write("**Manual update:**")
+            st.code("Edit config/openai_pricing.json")
+
+            st.write("**Automated update:**")
+            st.code("python update_pricing.py --method auto")
+
+            st.write("**Available methods:**")
+            st.caption("• auto: Try all methods")
+            st.caption("• github: Community repo")
+            st.caption("• web_scrape: OpenAI website")
+            st.caption("• manual: Edit config file")
+    else:
+        st.sidebar.info("Chat engine not initialized")
 
 
 def render_file_upload_section():
@@ -331,21 +454,97 @@ def render_settings_section():
     )
     st.session_state.temperature = temperature
 
-    # Model selection
+    # Model selection - dynamic list from pricing config
+    available_models = get_available_chat_models()
+    current_model = st.session_state.get('model', settings.DEFAULT_MODEL)
+
+    # Ensure current model is in the list, if not use first available
+    if current_model not in available_models:
+        current_model = available_models[0]
+
     model = st.sidebar.selectbox(
         "Model",
-        options=["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo"],
-        index=0 if st.session_state.get(
-            'model', settings.DEFAULT_MODEL) == "gpt-3.5-turbo" else 1,
-        help="Select the OpenAI model to use for responses"
+        options=available_models,
+        index=available_models.index(
+            current_model) if current_model in available_models else 0,
+        help="Select the OpenAI model to use for responses. Models are sorted by performance and cost."
     )
     st.session_state.model = model
+
+    # Show model information
+    if model:
+        model_info = get_model_info(model)
+        with st.sidebar.expander("ℹ️ Model Information"):
+            st.write(f"**{model}**")
+            st.caption(model_info["description"])
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric(
+                    label="Input Cost",
+                    value=f"${model_info['input_cost']:.4f}",
+                    help="Cost per 1K input tokens"
+                )
+            with col2:
+                st.metric(
+                    label="Output Cost",
+                    value=f"${model_info['output_cost']:.4f}",
+                    help="Cost per 1K output tokens"
+                )
 
     # Clear chat button
     if st.sidebar.button("🧹 Clear Chat History", type="secondary"):
         st.session_state.chat_engine.clear_conversation()
         st.sidebar.success("Chat history cleared!")
         st.rerun()
+
+
+def render_usage_summary():
+    """Render session usage summary in sidebar."""
+    st.sidebar.subheader("💰 Session Usage")
+
+    # Get session totals from token tracker
+    if hasattr(st.session_state, 'chat_engine') and st.session_state.chat_engine:
+        # Calculate totals from all messages
+        total_input_tokens = 0
+        total_output_tokens = 0
+        total_cost = 0.0
+
+        messages = st.session_state.chat_engine.get_conversation_history()
+        for message in messages:
+            if message.get("role") == "assistant" and message.get("metadata", {}).get("token_usage"):
+                usage = message["metadata"]["token_usage"]
+                total_input_tokens += usage.get("input_tokens", 0)
+                total_output_tokens += usage.get("output_tokens", 0)
+                total_cost += usage.get("cost", 0.0)
+
+        # Display metrics
+        if total_input_tokens > 0 or total_output_tokens > 0:
+            col1, col2 = st.sidebar.columns(2)
+
+            with col1:
+                st.metric(
+                    label="Input",
+                    value=f"{total_input_tokens:,}"
+                )
+
+            with col2:
+                st.metric(
+                    label="Output",
+                    value=f"{total_output_tokens:,}"
+                )
+
+            total_tokens = total_input_tokens + total_output_tokens
+            st.sidebar.metric(
+                label="Total Cost",
+                value=f"${total_cost:.4f}"
+            )
+
+            st.sidebar.caption(f"Total: {total_tokens:,} tokens")
+        else:
+            st.sidebar.info("No usage data yet")
+    else:
+        st.sidebar.info("Chat engine not initialized")
 
 
 def render_main_content():
@@ -408,6 +607,44 @@ def render_chat_message(message: Dict[str, Any], message_index: int = 0):
 
             elif msg_type == "database":
                 render_database_results(metadata, message_index)
+
+            # Show token usage if available
+            token_usage = metadata.get("token_usage")
+            if token_usage:
+                render_token_usage(token_usage)
+
+
+def render_token_usage(token_usage):
+    """Render token usage information for a response."""
+    if not token_usage:
+        return
+
+    with st.expander("💰 Token Usage & Cost"):
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric(
+                label="Input Tokens",
+                value=f"{token_usage.get('input_tokens', 0):,}"
+            )
+
+        with col2:
+            st.metric(
+                label="Output Tokens",
+                value=f"{token_usage.get('output_tokens', 0):,}"
+            )
+
+        with col3:
+            cost = token_usage.get('cost', 0)
+            st.metric(
+                label="Cost",
+                value=f"${cost:.4f}"
+            )
+
+        # Additional details
+        model = token_usage.get('model', 'Unknown')
+        total_tokens = token_usage.get('total_tokens', 0)
+        st.caption(f"Model: {model} | Total: {total_tokens:,} tokens")
 
 
 def render_document_sources(sources):

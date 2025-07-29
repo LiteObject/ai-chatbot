@@ -11,6 +11,7 @@ from llama_index.llms.openai import OpenAI
 from config.settings import settings
 from src.database_handler import DatabaseHandler
 from src.document_handler import DocumentHandler
+from src.token_tracker import token_tracker, create_usage_display
 
 
 class ChatEngine:
@@ -117,6 +118,17 @@ class ChatEngine:
 
             # Query the documents
             response = query_engine.query(user_message)
+            response_text = str(response)
+
+            # Track token usage (estimate for document queries)
+            # Note: LlamaIndex doesn't expose detailed token usage, so we estimate
+            model = st.session_state.get('model', settings.DEFAULT_MODEL)
+            request_info = token_tracker.track_request(
+                input_text=user_message,
+                output_text=response_text,
+                model=model,
+                request_type="document_query"
+            )
 
             # Extract sources
             sources = []
@@ -129,10 +141,11 @@ class ChatEngine:
                         })
 
             return {
-                "response": str(response),
+                "response": response_text,
                 "sources": sources,
                 "type": "document",
-                "query": user_message
+                "query": user_message,
+                "token_usage": request_info
             }
 
         except AttributeError as e:
@@ -191,12 +204,23 @@ class ChatEngine:
             response_text = self._generate_database_response(
                 user_message, data, sql_query)
 
+            # Track token usage for database queries (estimate)
+            # Note: Database queries involve SQL generation via LlamaIndex
+            model = st.session_state.get('model', settings.DEFAULT_MODEL)
+            request_info = token_tracker.track_request(
+                input_text=user_message,
+                output_text=response_text,
+                model=model,
+                request_type="database_query"
+            )
+
             return {
                 "response": response_text,
                 "sql_query": sql_query,
                 "data": data,
                 "type": "database",
-                "query": user_message
+                "query": user_message,
+                "token_usage": request_info
             }
 
         except ValueError as e:
@@ -252,13 +276,29 @@ class ChatEngine:
             # Add current message
             messages.append({"role": "user", "content": user_message})
 
+            # Prepare input text for token counting
+            input_text = system_message + "\n" + user_message
+            for msg in recent_messages:
+                if msg["role"] in ["user", "assistant"]:
+                    input_text += f"\n{msg['content']}"
+
             # Generate response
             response = llm.complete(user_message)
+            response_text = str(response)
+
+            # Track token usage
+            request_info = token_tracker.track_request(
+                input_text=input_text,
+                output_text=response_text,
+                model=st.session_state.model,
+                request_type="general_chat"
+            )
 
             return {
-                "response": str(response),
+                "response": response_text,
                 "type": "general",
-                "query": user_message
+                "query": user_message,
+                "token_usage": request_info
             }
 
         except (AttributeError, ValueError, TypeError) as e:

@@ -1,0 +1,49 @@
+{
+  "gpt-4o": {
+    "input": 0.005,
+    "output": 0.015
+  },
+  "gpt-4o-mini": {
+    "input": 0.00015,
+    "output": 0.0006
+  },
+  "gpt-4-turbo": {
+    "input": 0.01,
+    "output": 0.03
+  },
+  "gpt-4-turbo-preview": {
+    "input": 0.01,
+    "output": 0.03
+  },
+  "gpt-4": {
+    "input": 0.03,
+    "output": 0.06
+  },
+  "gpt-3.5-turbo": {
+    "input": 0.0005,
+    "output": 0.0015
+  },
+  "gpt-3.5-turbo-0125": {
+    "input": 0.0005,
+    "output": 0.0015
+  },
+  "gpt-3.5-turbo-instruct": {
+    "input": 0.0015,
+    "output": 0.002
+  },
+  "text-embedding-ada-002": {
+    "input": 0.0001,
+    "output": 0.0
+  },
+  "text-embedding-3-small": {
+    "input": 0.00002,
+    "output": 0.0
+  },
+  "text-embedding-3-large": {
+    "input": 0.00013,
+    "output": 0.0
+  },
+  "last_updated": "2025-07-28T12:00:00",
+  "source": "updated_config",
+  "note": "Updated with latest OpenAI models and current pricing as of July 2025"
+}
