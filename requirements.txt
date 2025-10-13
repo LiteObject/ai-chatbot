@@ -54,7 +54,7 @@ jsonschema-specifications==2025.4.1
 kubernetes==33.1.0
 llama-cloud==0.1.32
 llama-cloud-services==0.6.43
-llama-index==0.12.51
+llama-index==0.13.0
 llama-index-agent-openai==0.4.12
 llama-index-cli==0.4.4
 llama-index-core==0.12.51
